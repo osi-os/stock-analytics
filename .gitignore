@@ -1,3 +1,3 @@
 *.toml
 *.lock
-*.venvmodule2/data.parquet
+*.parquet
