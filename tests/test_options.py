@@ -43,7 +43,8 @@ def test_plan_sizes_on_loss_at_stop_and_keeps_third_strike():
     exp = date(2026, 11, 13)
     T = (2 * 24 + 6) / (365 * 24)
     chain = _chain(178.7, 0.45, T, "call")
-    plan = plan_option_trade("NVDA", "long", 178.7, 177.8, 180.5, chain, exp, now)
+    plan = plan_option_trade("NVDA", "long", 178.7, 177.8, 180.5, chain, exp, now,
+                             max_premium_fraction=None)
     assert plan.kind == "call" and plan.strike == 185.0
     assert plan.est_loss_per_contract > 0
     assert plan.contracts == max(1, math.floor(107.4 / plan.est_loss_per_contract))
@@ -64,3 +65,16 @@ def test_bad_bracket_rejected():
     now = datetime(2026, 11, 11, 10, 0, tzinfo=NY)
     with pytest.raises(ValueError):
         plan_option_trade("X", "long", 100, 101, 102, _chain(100, .3, .01, "call"), date(2026, 11, 13), now)
+
+
+def test_premium_cap_limits_contracts_but_keeps_one():
+    now = datetime(2026, 11, 11, 10, 0, tzinfo=NY)
+    exp = date(2026, 11, 13)
+    T = (2 * 24 + 6) / (365 * 24)
+    chain = _chain(178.7, 0.45, T, "call")
+    free = plan_option_trade("NVDA", "long", 178.7, 177.8, 180.5, chain, exp, now, max_premium_fraction=None)
+    capped = plan_option_trade("NVDA", "long", 178.7, 177.8, 180.5, chain, exp, now, max_premium_fraction=0.25)
+    assert capped.contracts <= free.contracts
+    assert capped.contracts == 1 or capped.premium_paid <= 1074 * 0.25
+    tiny = plan_option_trade("NVDA", "long", 178.7, 177.8, 180.5, chain, exp, now, max_premium_fraction=0.001)
+    assert tiny.contracts == 1

@@ -39,6 +39,9 @@ import pandas as pd
 NY = ZoneInfo("America/New_York")
 ACCOUNT_SIZE = 1074.0
 RISK_FRACTION = 0.10
+# Most premium one trade may spend, as a share of the account (None = no cap).
+# At least one contract is always kept. Pending the trader's choice (25% recommended).
+MAX_PREMIUM_FRACTION: float | None = 0.25
 STRIKES_OUT = 3
 # Median time from entry to stop in the Oct 15 - Nov 9 stock backtest (5 bars of 5m).
 HOLD_MINUTES = 25
@@ -156,7 +159,8 @@ class OptionPlan:
 def plan_option_trade(ticker: str, side: str, spot: float, stop: float, target: float,
                       chain: pd.DataFrame, expiry: date, now: datetime,
                       account: float = ACCOUNT_SIZE, risk_fraction: float = RISK_FRACTION,
-                      n_out: int = STRIKES_OUT, hold_minutes: float = HOLD_MINUTES) -> OptionPlan:
+                      n_out: int = STRIKES_OUT, hold_minutes: float = HOLD_MINUTES,
+                      max_premium_fraction: float | None = MAX_PREMIUM_FRACTION) -> OptionPlan:
     """Build the trade plan from one expiry's chain.
 
     `chain` needs columns strike, bid, ask for the right type (calls for a long
@@ -200,6 +204,12 @@ def plan_option_trade(ticker: str, side: str, spot: float, stop: float, target: 
         contracts = max(1, math.floor(cap / loss))
     else:
         contracts = 1
+    if max_premium_fraction is not None:
+        by_premium = max(1, math.floor(account * max_premium_fraction / (ask * 100)))
+        if by_premium < contracts:
+            notes.append(f"contracts cut from {contracts} to {by_premium} by the "
+                         f"{max_premium_fraction:.0%} premium cap")
+            contracts = by_premium
     over_cap = loss is not None and loss * contracts > cap
     if over_cap:
         notes.append(f"one contract's estimated loss at the stop is over the ${cap:.2f} cap")
@@ -270,6 +280,8 @@ def main(argv=None):
     p.add_argument("--risk", type=float, default=RISK_FRACTION)
     p.add_argument("--strikes-out", type=int, default=STRIKES_OUT)
     p.add_argument("--hold-minutes", type=float, default=HOLD_MINUTES)
+    p.add_argument("--max-premium", type=float, default=MAX_PREMIUM_FRACTION,
+                   help="most premium per trade as a share of the account; 0 = no cap")
     a = p.parse_args(argv)
 
     if a.signals:
@@ -283,7 +295,8 @@ def main(argv=None):
     for s in sigs:
         try:
             rows.append(asdict(plan_from_signal(s, account=a.account, risk_fraction=a.risk,
-                                                n_out=a.strikes_out, hold_minutes=a.hold_minutes)))
+                                                n_out=a.strikes_out, hold_minutes=a.hold_minutes,
+                                                max_premium_fraction=a.max_premium or None)))
         except Exception as e:  # keep going on the other signals
             rows.append(dict(ticker=s["ticker"], side=s["side"], note=f"error: {e}"))
     out = pd.DataFrame(rows)
