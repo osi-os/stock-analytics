@@ -40,7 +40,7 @@ NY = ZoneInfo("America/New_York")
 ACCOUNT_SIZE = 1074.0
 RISK_FRACTION = 0.10
 # Most premium one trade may spend, as a share of the account (None = no cap).
-# At least one contract is always kept. Pending the trader's choice (25% recommended).
+# At least one contract is always kept. 25% chosen by the trader on 2026-11-10.
 MAX_PREMIUM_FRACTION: float | None = 0.25
 STRIKES_OUT = 3
 # Median time from entry to stop in the Oct 15 - Nov 9 stock backtest (5 bars of 5m).
